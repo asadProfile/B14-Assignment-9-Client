@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -12,11 +12,45 @@ function SignInContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get('redirect');
+  const tokenFromUrl = searchParams.get('token');
+  const errorFromUrl = searchParams.get('error');
   const { login } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Check for Google OAuth callback token or errors in URL
+  useEffect(() => {
+    if (errorFromUrl) {
+      toast.error(decodeURIComponent(errorFromUrl));
+    }
+
+    if (tokenFromUrl) {
+      const handleTokenLogin = async () => {
+        setIsLoading(true);
+        try {
+          const res = await fetchApi<{ user: any }>('/auth/me', {
+            headers: { Authorization: `Bearer ${tokenFromUrl}` },
+          });
+
+          if (res.success && res.user) {
+            toast.success('Signed in with Google!');
+            login(tokenFromUrl, res.user);
+            router.push(res.user.role === 'admin' ? '/dashboard/admin' : '/dashboard/customer');
+          } else {
+            toast.error('Failed to verify Google sign-in session.');
+          }
+        } catch {
+          toast.error('Error during Google sign-in.');
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      handleTokenLogin();
+    }
+  }, [tokenFromUrl, errorFromUrl]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,11 +91,20 @@ function SignInContent() {
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     try {
-      // Demo Google Sign-In simulation with authorized customer
+      // 1. Check if server has Google OAuth credentials configured
+      const urlCheck = await fetchApi<{ configured: boolean; url: string }>('/auth/google/url');
+
+      if (urlCheck.success && urlCheck.configured && urlCheck.url) {
+        // Redirect to live Google OAuth consent screen
+        window.location.href = urlCheck.url;
+        return;
+      }
+
+      // 2. Fallback: Authenticate demo Google user if keys are not yet provided
       const res = await fetchApi('/auth/google', {
         method: 'POST',
         body: JSON.stringify({
-          email: 'google.user@example.com',
+          email: 'google.verified@example.com',
           name: 'Google Verified User',
           image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
         }),
