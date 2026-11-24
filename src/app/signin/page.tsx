@@ -20,6 +20,22 @@ function SignInContent() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Helper to determine proper dashboard redirect based on user role
+  const getDestinationUrl = (targetUrl: string | null, role: 'admin' | 'customer') => {
+    if (!targetUrl) {
+      return role === 'admin' ? '/dashboard/admin' : '/dashboard/customer';
+    }
+    // Prevent customer from being routed to the restricted admin dashboard
+    if (targetUrl.startsWith('/dashboard/admin') && role !== 'admin') {
+      return '/dashboard/customer';
+    }
+    // Prevent admin from being routed to the customer dashboard
+    if (targetUrl.startsWith('/dashboard/customer') && role === 'admin') {
+      return '/dashboard/admin';
+    }
+    return targetUrl;
+  };
+
   // Check for Google OAuth callback token or errors in URL
   useEffect(() => {
     if (errorFromUrl) {
@@ -37,7 +53,7 @@ function SignInContent() {
           if (res.success && res.user) {
             toast.success('Signed in with Google!');
             login(tokenFromUrl, res.user);
-            router.push(res.user.role === 'admin' ? '/dashboard/admin' : '/dashboard/customer');
+            router.push(getDestinationUrl(redirectUrl, res.user.role));
           } else {
             toast.error('Failed to verify Google sign-in session.');
           }
@@ -50,7 +66,7 @@ function SignInContent() {
 
       handleTokenLogin();
     }
-  }, [tokenFromUrl, errorFromUrl]);
+  }, [tokenFromUrl, errorFromUrl, redirectUrl]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,14 +86,7 @@ function SignInContent() {
       if (res.success && res.token && res.user) {
         toast.success(res.message || 'Signed in successfully!');
         login(res.token, res.user);
-
-        if (redirectUrl) {
-          router.push(redirectUrl);
-        } else if (res.user.role === 'admin') {
-          router.push('/dashboard/admin');
-        } else {
-          router.push('/dashboard/customer');
-        }
+        router.push(getDestinationUrl(redirectUrl, res.user.role));
       } else {
         toast.error(res.message || 'Invalid email or password.');
       }
@@ -91,8 +100,11 @@ function SignInContent() {
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     try {
-      // 1. Check if server has Google OAuth credentials configured
-      const urlCheck = await fetchApi<{ configured: boolean; url: string }>('/auth/google/url');
+      // 1. Pass current origin to server so it redirects back accurately (localhost or Vercel domain)
+      const clientOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+      const urlCheck = await fetchApi<{ configured: boolean; url: string }>(
+        `/auth/google/url?client_url=${encodeURIComponent(clientOrigin)}`
+      );
 
       if (urlCheck.success && urlCheck.configured && urlCheck.url) {
         // Redirect to live Google OAuth consent screen
@@ -113,7 +125,7 @@ function SignInContent() {
       if (res.success && res.token && res.user) {
         toast.success('Signed in with Google!');
         login(res.token, res.user);
-        router.push(redirectUrl || '/dashboard/customer');
+        router.push(getDestinationUrl(redirectUrl, res.user.role));
       } else {
         toast.error(res.message || 'Google sign in failed.');
       }
