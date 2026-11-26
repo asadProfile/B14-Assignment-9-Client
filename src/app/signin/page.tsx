@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { fetchApi } from '@/lib/api';
 import { toast } from 'sonner';
-import { Scissors, Mail, Lock, Loader2, ArrowRight, Sparkles } from 'lucide-react';
+import { Scissors, Mail, Lock, Loader2, ArrowRight } from 'lucide-react';
 
 function SignInContent() {
   const router = useRouter();
@@ -148,25 +148,6 @@ function SignInContent() {
           <p className="text-sm text-gray-600">
             Sign in to manage your salon appointments and payments.
           </p>
-        </div>
-
-        {/* Quick Credentials Info Box for Evaluators */}
-        <div className="p-3.5 bg-rose-50/80 rounded-2xl border border-rose-100 text-xs text-rose-900 space-y-1">
-          <p className="font-bold flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-rose-600" /> Demo Credentials:
-          </p>
-          <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
-            <div>
-              <span className="font-bold block text-rose-800">Admin:</span>
-              <span>admin@salonbook.com</span>
-              <span className="block text-gray-500">Admin123!</span>
-            </div>
-            <div>
-              <span className="font-bold block text-rose-800">Customer:</span>
-              <span>customer@salonbook.com</span>
-              <span className="block text-gray-500">Customer123!</span>
-            </div>
-          </div>
         </div>
 
         {/* Login Form */}

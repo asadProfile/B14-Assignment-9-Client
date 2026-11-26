@@ -21,6 +21,7 @@ import {
   Upload,
   ArrowRight,
   ShieldCheck,
+  Receipt,
 } from 'lucide-react';
 
 interface AppointmentItem {
@@ -49,10 +50,28 @@ interface CustomerStats {
   cancelledAppointments: number;
 }
 
+interface TransactionItem {
+  _id: string;
+  appointmentId?: {
+    _id: string;
+    appointmentDate: string;
+    timeSlot: string;
+    serviceId?: {
+      serviceName: string;
+      category: string;
+    };
+  };
+  amount: number;
+  currency: string;
+  stripeSessionId: string;
+  status: string;
+  createdAt: string;
+}
+
 export default function CustomerDashboardPage() {
   const { user, updateUser } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'profile'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'payments' | 'profile'>('overview');
   const [stats, setStats] = useState<CustomerStats>({
     totalAppointments: 0,
     pendingAppointments: 0,
@@ -60,6 +79,7 @@ export default function CustomerDashboardPage() {
     cancelledAppointments: 0,
   });
   const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
+  const [transactions, setTransactions] = useState<TransactionItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Modal State for Viewing Appointment Details
@@ -78,9 +98,10 @@ export default function CustomerDashboardPage() {
   const loadDashboardData = async () => {
     setIsLoading(true);
     try {
-      const [statsRes, appointmentsRes] = await Promise.all([
+      const [statsRes, appointmentsRes, transactionsRes] = await Promise.all([
         fetchApi<CustomerStats>('/dashboard/customer'),
         fetchApi<AppointmentItem[]>('/appointments/my'),
+        fetchApi<TransactionItem[]>('/payments/my-transactions'),
       ]);
 
       if (statsRes.success && statsRes.stats) {
@@ -88,6 +109,9 @@ export default function CustomerDashboardPage() {
       }
       if (appointmentsRes.success && appointmentsRes.data) {
         setAppointments(appointmentsRes.data);
+      }
+      if (transactionsRes.success && transactionsRes.data) {
+        setTransactions(transactionsRes.data);
       }
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
@@ -288,6 +312,18 @@ export default function CustomerDashboardPage() {
             >
               <CalendarDays className="w-4 h-4" />
               <span>My Appointments</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('payments')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                activeTab === 'payments'
+                  ? 'bg-white text-rose-700 shadow-sm'
+                  : 'text-gray-600 hover:text-rose-600'
+              }`}
+            >
+              <Receipt className="w-4 h-4" />
+              <span>Payment History ({transactions.length})</span>
             </button>
 
             <button
@@ -574,7 +610,70 @@ export default function CustomerDashboardPage() {
               </div>
             )}
 
-            {/* TAB 3: MY PROFILE */}
+            {/* TAB 3: PAYMENT HISTORY */}
+            {activeTab === 'payments' && (
+              <div className="bg-white rounded-3xl border border-rose-100 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-rose-50">
+                  <h3 className="text-xl font-bold text-gray-900">Payment History</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Your verified Stripe sandbox receipts and completed salon transactions.
+                  </p>
+                </div>
+
+                {transactions.length === 0 ? (
+                  <div className="py-16 text-center space-y-2 text-gray-500">
+                    <Receipt className="w-12 h-12 text-rose-200 mx-auto" />
+                    <p className="text-sm font-semibold">No payments completed yet.</p>
+                    <p className="text-xs">Once an appointment is confirmed and paid via Stripe, your receipt appears here.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-rose-50/50 text-[11px] font-bold uppercase tracking-wider text-gray-500 border-b border-rose-100">
+                          <th className="py-4 px-6">Service</th>
+                          <th className="py-4 px-6">Appointment Date</th>
+                          <th className="py-4 px-6">Stripe Session ID</th>
+                          <th className="py-4 px-6">Amount</th>
+                          <th className="py-4 px-6">Status</th>
+                          <th className="py-4 px-6">Paid On</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-rose-50 text-sm">
+                        {transactions.map((tr) => (
+                          <tr key={tr._id} className="hover:bg-rose-50/20 transition-colors">
+                            <td className="py-4 px-6 font-bold text-gray-900">
+                              {tr.appointmentId?.serviceId?.serviceName || 'Salon Service'}
+                            </td>
+                            <td className="py-4 px-6 text-xs text-gray-600">
+                              {tr.appointmentId
+                                ? `${tr.appointmentId.appointmentDate} (${tr.appointmentId.timeSlot})`
+                                : 'N/A'}
+                            </td>
+                            <td className="py-4 px-6 font-mono text-xs text-gray-500 max-w-[200px] truncate">
+                              {tr.stripeSessionId}
+                            </td>
+                            <td className="py-4 px-6 font-black text-emerald-700">
+                              ${tr.amount} {tr.currency?.toUpperCase()}
+                            </td>
+                            <td className="py-4 px-6">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 uppercase">
+                                <CheckCircle className="w-3 h-3" /> {tr.status}
+                              </span>
+                            </td>
+                            <td className="py-4 px-6 text-xs text-gray-500">
+                              {new Date(tr.createdAt).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 4: MY PROFILE */}
             {activeTab === 'profile' && (
               <div className="max-w-2xl bg-white rounded-3xl border border-rose-100 shadow-sm p-6 sm:p-10 space-y-6">
                 <div>
